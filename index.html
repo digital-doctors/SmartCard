@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>DocAI - Consultation Room</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+  <style>
+    body {
+      font-family: 'Poppins', sans-serif;
+      background-color: #f4f7fb;
+      margin: 0;
+      overflow: hidden;
+    }
+
+    .app-container {
+      display: flex;
+      height: 100vh;
+    }
+
+    .sidebar {
+      background-color: #003366;
+      color: white;
+      width: 240px;
+      padding: 30px 20px;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .sidebar h2 {
+      font-size: 24px;
+      margin-bottom: 40px;
+      text-align: center;
+    }
+
+    .sidebar button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 18px;
+      padding: 15px 0;
+      text-align: center;
+      width: 100%;
+      transition: background 0.2s;
+    }
+
+    .sidebar button:hover,
+    .sidebar button.active {
+      background-color: #0059b3;
+      border-radius: 10px;
+    }
+
+    .content {
+      flex: 1;
+      padding: 40px;
+      overflow-y: auto;
+      text-align: center;
+    }
+
+    h3 {
+      font-size: 30px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+
+    .instruction {
+      font-size: 17px;
+      color: #555;
+      margin-bottom: 30px;
+    }
+
+    form {
+      max-width: 700px;
+      margin: 0 auto;
+      text-align: left;
+    }
+
+    .form-label {
+      font-weight: 500;
+    }
+
+    .btn-custom {
+      background-color: #0066cc;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      font-size: 16px;
+      border-radius: 8px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    .voice-btn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background-color: #0072f5;
+      color: white;
+      border: none;
+      border-radius: 50%;
+      width: 60px;
+      height: 60px;
+      font-size: 24px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      transition: transform 0.2s ease;
+    }
+
+    .voice-btn:hover {
+      transform: scale(1.1);
+    }
+
+    .hidden {
+      display: none;
+    }
+
+    video {
+      width: 100%;
+      border-radius: 12px;
+      margin-top: 20px;
+    }
+    #appIntroduction {
+  font-family: "Segoe UI", sans-serif;
+  background-color: #f9f9fb;
+  border: 1px solid #dcdcdc;
+  padding: 24px;
+  border-radius: 12px;
+  max-width: 700px;
+  margin: 20px auto;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+}
+
+#appIntroduction h3 {
+  font-size: 1.8em;
+  margin-bottom: 12px;
+  color: #2a2a2a;
+}
+
+#appIntroduction p {
+  font-size: 1em;
+  line-height: 1.6;
+  color: #444;
+  margin-bottom: 16px;
+}
+
+#appIntroduction .instruction {
+  font-weight: bold;
+  color: #1e4f91;
+}
+
+#appIntroduction strong {
+  color: #2a2a2a;
+}
+
+#appIntroduction em { 
+  color: #555;
+  font-style: italic;
+}
+
+.signatureBox {
+  margin-top: 30px;
+  padding: 20px;
+  border-top: 1px solid #ddd;
+}
+
+.signatureBox label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: bold;
+  color: #333;
+}
+
+.signatureBox input[type="text"] {
+  width: 100%;
+  max-width: 400px;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  margin-bottom: 16px;
+  font-size: 1em;
+}
+
+.checkboxContainer {
+  margin-bottom: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#agreeTerms {
+  transform: scale(1.2);
+  cursor: pointer;
+}
+
+.signatureBox button {
+  background-color: #1e4f91;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  font-size: 1em;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.signatureBox button:hover {
+  background-color: #163d71;
+}
+/* Signature button base style */
+.signatureBox button {
+  background-color: #ccc; /* grey when disabled */
+  color: #666;
+  border: none;
+  padding: 12px 22px;
+  font-size: 1em;
+  border-radius: 6px;
+  cursor: not-allowed;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Enabled state (JavaScript will add this class) */
+.signatureBox button.enabled {
+  background-color: #1e4f91; /* active blue */
+  color: white;
+  cursor: pointer;
+}
+
+/* Popup - now centered and larger */
+.popup {
+  display: none;
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: #1e4f91;
+  color: white;
+  padding: 30px 40px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  z-index: 9999;
+  font-size: 1.25em;
+  text-align: center;
+}
+
+/* Show animation */
+.popup.show {
+  display: block;
+  animation: fadeInOut 4s ease forwards;
+}
+
+@keyframes fadeInOut {
+  0%   { opacity: 0; transform: translate(-50%, -60%); }
+  10%  { opacity: 1; transform: translate(-50%, -50%); }
+  90%  { opacity: 1; transform: translate(-50%, -50%); }
+  100% { opacity: 0; transform: translate(-50%, -60%); }
+}
+
+
+  </style>
+</head>
+<body>
+
+<div class="app-container">
+  <div class="sidebar">
+    <h2>DocAI</h2>
+    <button class="nav-btn active" data-target="appIntroduction">Get Started</button>
+    <button class="nav-btn" data-target="patientSection">Patient Info</button>
+    <button class="nav-btn" data-target="formSection">Health Form</button>
+    <button class="nav-btn" data-target="scanSection">Health Scan</button>
+    <button class="nav-btn" data-target="uploadSection">Upload Images</button>
+  </div>
+
+  <div class="content">
+
+<!-- Introduction -->
+<section id="appIntroduction" class="section">
+  <header>
+    <h3>Welcome to DocAI</h3>
+  </header>
+
+  <article>
+    <p class="instruction">
+      <strong>This is your virtual consultation room.</strong><br>
+      Please follow the instructions on each screen carefully before your doctor arrives.
+    </p>
+
+    <p>
+      DocAI is designed to guide you step-by-step through your online medical checkup. Our goal is to make this experience smooth, clear, and stress-free.
+    </p>
+
+    <p>
+      <strong>Navigation:</strong><br>
+      Use the buttons on the <em>left side</em> of the screen to move between sections. Each section will prompt you to provide specific health-related details that will help your doctor understand your condition better.
+    </p>
+
+    <p>
+      <strong>Need time?</strong><br>
+      There is no rush. If you’re unsure about a question, take your time and read the instructions carefully. Providing accurate information is key to receiving the best care.
+    </p>
+
+    <p>
+      <strong>Next steps:</strong><br>
+      Once you’ve completed all sections, your doctor will review your responses and then join you for a live consultation.
+    </p>
+
+    <p>
+      Thank you for using <strong>DocAI</strong>. We're here to support your health—every step of the way.
+    </p>
+  </article>
+
+  <!-- Signature and Terms Agreement -->
+  <div class="signatureBox" style="max-width: 600px; margin: 30px auto; text-align: center;">
+    <label for="signature">Please sign your name below to confirm:</label><br>
+    <input type="text" id="signature" name="signature" placeholder="Full Name" style="margin: 10px 0; padding: 8px; width: 80%;">
+
+    <div class="termsBox" style="text-align: left; margin-top: 20px;">
+      <p>
+        I acknowledge that by participating in this virtual consultation, I am voluntarily providing personal and medical information to be reviewed by a licensed medical professional. I understand that this platform does not replace in-person medical evaluation, diagnosis, or treatment. All information shared is confidential and will be handled in accordance with applicable privacy laws and regulations, including HIPAA. By continuing, I consent to the collection, storage, and processing of my data for the purpose of improving healthcare delivery. I confirm that the information I provide is truthful to the best of my knowledge. I accept responsibility for the accuracy of my responses and agree to follow any instructions or recommendations provided by the healthcare professional during or after this consultation.
+      </p>
+    </div>
+
+    <div class="checkboxContainer" style="margin-top: 15px;">
+      <input type="checkbox" id="agreeTerms">
+      <label for="agreeTerms">I agree to the terms and conditions stated above.</label>
+    </div>
+
+    <div style="margin-top: 20px;">
+      <button id="agreeButton" disabled>✔ Agree to Terms</button>
+    </div>
+  </div>
+
+  <!-- Notification Popup -->
+  <div id="popupNotification" class="popup hidden">
+    You have successfully signed in and agreed to the terms!
+  </div>
+</section>
+
+<!-- Patient Info -->
+    <div id="patientSection" class="section hidden">
+      <h3>Enter Your Information</h3>
+      <p class="instruction">Please fill out your personal details accurately before beginning your health evaluation.</p>
+      <form id="patientInfoForm" method="POST" action="/submit-patient">
+        <div class="mb-3"><label class="form-label">Full Name</label><input type="text" class="form-control" name="full_name" required></div>
+        <div class="mb-3"><label class="form-label">Date of Birth</label><input type="date" class="form-control" name="dob" required></div>
+        <div class="mb-3"><label class="form-label">Phone</label><input type="text" class="form-control" name="phone" required></div>
+        <div class="mb-3"><label class="form-label">Email</label><input type="email" class="form-control" name="email" required></div>
+        <div class="mb-3"><label class="form-label">Address</label><textarea class="form-control" name="address" rows="2" required></textarea></div>
+        <button type="submit" class="btn-custom">Submit Information</button>
+      </form>
+    </div>
+
+    <!-- Scan -->
+    <div id="scanSection" class="section hidden">
+      <h3>Health Scan</h3>
+      <p class="instruction">Use the camera to scan your face for vital signs such as heart rate and temperature.</p>
+      <video id="video" autoplay muted playsinline class="hidden"></video>
+      <button id="analyzeBtn" class="btn-custom">Start Health Analysis</button>
+      <div id="lottieLoading" class="text-center mt-3 hidden">
+        <lottie-player src="https://assets9.lottiefiles.com/packages/lf20_usmfx6bp.json" background="transparent" speed="1" style="width: 150px; height: 150px;" loop autoplay></lottie-player>
+        <p>Analyzing your health data. Please remain still.</p>
+      </div>
+      <div id="result" class="mt-4"></div>
+    </div>
+
+    <!-- Form -->
+    <div id="formSection" class="section hidden">
+      <h3>Health Questionnaire</h3>
+      <p class="instruction">Kindly answer the following questions to assist your healthcare provider.</p>
+      <form id="healthForm" method="POST" action="/submit-form">
+        <div class="mb-3"><label class="form-label">What brings you in today?</label><input type="text" class="form-control" name="question1" required></div>
+        <div class="mb-3"><label class="form-label">Describe any recent symptoms or health changes</label><textarea class="form-control" name="question2" rows="2" required></textarea></div>
+        <div class="mb-3"><label class="form-label">Do you have any known allergies?</label><textarea class="form-control" name="question3" rows="2" required></textarea></div>
+        <div class="mb-3"><label class="form-label">History of chronic diseases</label><textarea class="form-control" name="question4" rows="2" required></textarea></div>
+        <div class="mb-3"><label class="form-label">Current medications</label><textarea class="form-control" name="question5" rows="2" required></textarea></div>
+        <button type="submit" class="btn-custom">Submit Questionnaire</button>
+      </form>
+    </div>
+
+    <!-- Upload Images -->
+    <div id="uploadSection" class="section hidden">
+      <h3>Upload Diagnostic Images</h3>
+      <p class="instruction">You may upload any medical images (e.g., rashes, wounds) for AI analysis before your consultation.</p>
+      <form id="imageForm" enctype="multipart/form-data">
+        <div class="mb-3"><input class="form-control" type="file" id="images" name="images" accept="image/*" multiple required></div>
+        <button type="submit" class="btn-custom">Upload & Analyze</button>
+      </form>
+      <div id="imageResult" class="mt-4"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Chatbot UI -->
+<div id="chatbotWidget" class="position-fixed bottom-0 end-0 m-3" style="z-index: 9999;">
+  <button class="btn btn-primary rounded-circle shadow" id="toggleChatbot" style="width:60px;height:60px;font-size:24px;">💬</button>
+  <div id="chatbotContainer" class="bg-white border rounded p-3 shadow" style="width: 320px; height: 400px; display: none; flex-direction: column;">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <strong>DocAI Assistant</strong>
+      <button class="btn-close" onclick="closeChatbot()"></button>
+
+    </div>
+    <div id="chatbotOutput" class="border rounded p-2 mb-2" style="flex:1; overflow-y:auto; background:#f8f9fa; font-size:14px;"></div>
+    <div class="input-group">
+      <input type="text" id="chatbotInput" class="form-control" placeholder="Type a question..." />
+      <button id="chatbotSend" class="btn btn-success">Send</button>
+    </div>
+  </div>
+</div>
+
+
+
+
+<script>
+  window.onload = function () {
+    // ---------- NAVIGATION ----------
+    document.querySelectorAll(".nav-btn").forEach(btn => {
+      btn.onclick = () => {
+        document.querySelectorAll(".nav-btn").forEach(b => b.classList.remove("active"));
+        document.querySelectorAll(".section").forEach(sec => sec.classList.add("hidden"));
+        btn.classList.add("active");
+        document.getElementById(btn.dataset.target).classList.remove("hidden");
+      };
+    });
+
+    // ---------- VOICE ASSISTANT ----------
+    const voiceBtn = document.getElementById("voiceAssistant");
+    if (voiceBtn) {
+      voiceBtn.onclick = () => {
+        const message = new SpeechSynthesisUtterance(
+          "Welcome to DocAI. Please follow the instructions on each screen carefully before your doctor arrives."
+        );
+        message.lang = "en-US";
+        speechSynthesis.speak(message);
+      };
+    }
+
+    // ---------- PATIENT FORM ----------
+    const patientForm = document.getElementById("patientInfoForm");
+    if (patientForm) {
+      patientForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        fetch(this.action, { method: "POST", body: new FormData(this) })
+          .then(() => Swal.fire("Submitted!", "Patient information recorded.", "success"));
+      });
+    }
+
+    // ---------- IMAGE UPLOAD ----------
+    const imageForm = document.getElementById("imageForm");
+    if (imageForm) {
+      imageForm.addEventListener("submit", function (e) {
+        e.preventDefault();
+        const result = document.getElementById("imageResult");
+        result.innerHTML = "<p>Processing images...</p>";
+        fetch("/analyze-image", { method: "POST", body: new FormData(this) })
+          .then(res => res.json())
+          .then(data => {
+            result.innerHTML = `<p>${data.message || "Image analysis complete."}</p>`;
+          });
+      });
+    }
+
+    // ---------- HEALTH SCAN ----------
+    const video = document.getElementById("video");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const resultDiv = document.getElementById("result");
+    const lottie = document.getElementById("lottieLoading");
+
+    if (analyzeBtn) {
+      analyzeBtn.onclick = function () {
+        resultDiv.innerHTML = "";
+        lottie.classList.remove("hidden");
+        video.classList.remove("hidden");
+        analyzeBtn.disabled = true;
+
+        navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "user" },
+            width: { ideal: 640 },
+            height: { ideal: 480 }
+          },
+          audio: false
+        }).then((stream) => {
+          video.srcObject = stream;
+          video.setAttribute("playsinline", true);
+          video.setAttribute("autoplay", true);
+          video.setAttribute("muted", true);
+
+          video.onloadedmetadata = () => {
+            video.play();
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+            const frames = [];
+            const fps = 30;
+            const duration = 10;
+            const totalFrames = fps * duration;
+
+            canvas.width = video.videoWidth || 640;
+            canvas.height = video.videoHeight || 480;
+
+            let count = 0;
+
+            const interval = setInterval(() => {
+              if (count >= totalFrames) {
+                clearInterval(interval);
+                stream.getTracks().forEach(track => track.stop());
+                video.classList.add("hidden");
+
+                fetch('/analyze_ppg', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ fps, frames })
+                })
+                  .then(res => res.json())
+                  .then(data => {
+                    lottie.classList.add("hidden");
+                    resultDiv.innerHTML = `
+                      <div class="mt-4 p-3 border rounded bg-white">
+                        <p><strong>Heart Rate:</strong> ${data.heart_rate} BPM</p>
+                        <p><strong>Temperature:</strong> ${data.temperature} °F</p>
+                      </div>
+                    `;
+                  });
+
+                return;
+              }
+
+              ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+              frames.push(canvas.toDataURL("image/jpeg"));
+              count++;
+            }, 1000 / fps);
+          };
+        }).catch((err) => {
+          console.error("Camera error:", err);
+          lottie.classList.add("hidden");
+          analyzeBtn.disabled = false;
+          alert("Unable to access camera. Please allow camera access or try another browser.");
+        });
+      };
+    }
+
+    // ---------- CHATBOT ----------
+    const chatbotInput = document.getElementById("chatbotInput");
+    const chatbotOutput = document.getElementById("chatbotOutput");
+    const chatbotSend = document.getElementById("chatbotSend");
+    const chatbotContainer = document.getElementById("chatbotContainer");
+    const toggleChatbot = document.getElementById("toggleChatbot");
+
+    if (toggleChatbot && chatbotContainer) {
+      toggleChatbot.onclick = () => {
+        const isOpen = chatbotContainer.style.display === "flex";
+        chatbotContainer.style.display = isOpen ? "none" : "flex";
+        toggleChatbot.style.display = isOpen ? "inline-block" : "none";
+      };
+    }
+
+    if (chatbotSend && chatbotInput && chatbotOutput) {
+      chatbotSend.onclick = async () => {
+        const userInput = chatbotInput.value.trim();
+        if (!userInput) return;
+
+        chatbotOutput.innerHTML += `<div class="text-end text-primary mb-1"><strong>You:</strong> ${userInput}</div>`;
+        chatbotInput.value = "";
+        chatbotOutput.scrollTop = chatbotOutput.scrollHeight;
+
+        try {
+          const response = await fetch("https://api.cohere.ai/v1/chat", {
+            method: "POST",
+            headers: {
+              "Authorization": "Bearer T3qTrjKvznkzFkjKPA9J3icKZjcZI6JZ5rAg3zKs",
+              "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+              model: "command-r-plus",
+              message: `Reply within one to two sentences: ${userInput}`,
+              max_tokens: 150
+            })
+          });
+
+          const data = await response.json();
+          const reply = data.text || "I'm not sure how to answer that.";
+          chatbotOutput.innerHTML += `<div class="text-start text-success mb-2"><strong>DocAI:</strong> ${reply}</div>`;
+          chatbotOutput.scrollTop = chatbotOutput.scrollHeight;
+        } catch (err) {
+          chatbotOutput.innerHTML += `<div class="text-danger">Error: ${err.message}</div>`;
+        }
+      };
+    }
+
+    // Close button for chatbot
+    window.closeChatbot = function () {
+      if (chatbotContainer && toggleChatbot) {
+        chatbotContainer.style.display = "none";
+        toggleChatbot.style.display = "inline-block";
+      }
+    };
+  };
+
+  // ---------- SIGNATURE AGREEMENT ----------
+  
+</script>
+
+<script>
+  const signatureInput = document.getElementById('signature');
+  const agreeCheckbox = document.getElementById('agreeTerms');
+  const agreeButton = document.getElementById('agreeButton');
+  const popup = document.getElementById('popupNotification');
+
+  function checkForm() {
+    const hasName = signatureInput.value.trim() !== "";
+    const isChecked = agreeCheckbox.checked;
+    const formValid = hasName && isChecked;
+
+    agreeButton.disabled = !formValid;
+
+    if (formValid) {
+      agreeButton.classList.add('enabled');
+    } else {
+      agreeButton.classList.remove('enabled');
+    }
+  }
+
+  signatureInput.addEventListener('input', checkForm);
+  agreeCheckbox.addEventListener('change', checkForm);
+
+  agreeButton.addEventListener('click', () => {
+    if (!agreeButton.disabled) {
+      popup.classList.add('show');
+      setTimeout(() => {
+        popup.classList.remove('show');
+      }, 4000);
+    }
+  });
+</script>
+
+
+
+
+
+</body>
+</html>
