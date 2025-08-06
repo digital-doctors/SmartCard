@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>SmartCard Login</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      overflow: hidden;
+      position: fixed;
+      width: 100%;
+      background: linear-gradient(to bottom, #f8f9fc, #e4e9f2);
+      font-family: 'Inter', sans-serif;
+    }
+
+    .container {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: 0 20px;
+    }
+
+    .logo {
+      font-size: 32px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: #007aff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .logo i {
+      font-size: 28px;
+    }
+
+    .subtitle {
+      font-size: 16px;
+      color: #666;
+      margin-bottom: 40px;
+    }
+
+    form {
+      width: 100%;
+      max-width: 320px;
+    }
+
+    input {
+      width: 100%;
+      padding: 14px 16px;
+      margin-bottom: 16px;
+      font-size: 16px;
+      border: 1px solid #ccc;
+      border-radius: 12px;
+      background: #fff;
+      transition: border 0.2s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #007aff;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      background-color: #007aff;
+      color: white;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      margin-bottom: 12px;
+    }
+
+    button:hover {
+      background-color: #005ce6;
+    }
+
+    .links {
+      display: flex;
+      justify-content: space-between;
+      max-width: 320px;
+      width: 100%;
+      font-size: 14px;
+      color: #007aff;
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .links a {
+      text-decoration: none;
+      color: #007aff;
+      transition: color 0.2s;
+    }
+
+    .links a:hover {
+      color: #005ce6;
+      text-decoration: underline;
+    }
+
+    .footer {
+      position: absolute;
+      bottom: 10px;
+      font-size: 13px;
+      color: #aaa;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="logo">
+      <i class="fas fa-credit-card"></i> SmartCard
+    </div>
+    <div class="subtitle">Secure Login to Your Wallet</div>
+    <form action="/login" method="post">
+      <input type="email" name="email" placeholder="Email" required />
+      <input type="password" name="password" placeholder="Password" required />
+      <button type="submit">Login</button>
+    </form>
+
+    <div class="links">
+      <a href="/forgot">Forgot password?</a>
+      <a href="{{ url_for('register') }}">Register</a>
+    </div>
+  </div>
+  <div class="footer">SmartCard © 2025</div>
+</body>
+
+</html>

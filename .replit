@@ -1,0 +1,13 @@
+modules = ["web", "python-3.12"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["libxcrypt", "pkg-config", "xsimd"]
+
+[[ports]]
+localPort = 5000
+externalPort = 5000
+
+[[ports]]
+localPort = 5001
+externalPort = 80

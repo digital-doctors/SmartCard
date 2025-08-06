@@ -1,0 +1,16 @@
+{
+  "nikhi.kanda@gmail.com": {
+    "password": "12345678",
+    "phone_number": "2245844629",
+    "dob": "October 12, 2010",
+    "address": "303 Vintage Ln",
+    "cards": []
+  },
+  "saradinu.7@gmail.com": {
+    "password": "098765",
+    "phone_number": "2243454475",
+    "dob": "May 6th, 1986",
+    "address": "303 Vintage Ln",
+    "cards": []
+  }
+}

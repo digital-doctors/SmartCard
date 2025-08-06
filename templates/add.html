@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Add Card</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet" />
+  <style>
+    * {
+      box-sizing: border-box;
+      padding: 0;
+      margin: 0;
+    }
+
+    body {
+      overflow: hidden !important;
+      height: 100vh;
+    }
+
+
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow: hidden !important;
+      background: #f4f6f8;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px 60px;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    #loadingScreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: #fff;
+      z-index: 9999;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .spinner {
+      width: 48px;
+      height: 48px;
+      border: 5px solid #e0e0e0;
+      border-top-color: #007BFF;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    header {
+      width: 100%;
+      max-width: 480px;
+      font-size: 24px;
+      font-weight: 800;
+      margin-bottom: 32px;
+      display: flex;
+      align-items: center;
+    }
+
+    header a {
+      text-decoration: none;
+      font-size: 22px;
+      font-weight: 600;
+      color: #007BFF;
+      margin-right: 16px;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+      transition: background-color 0.2s;
+    }
+
+    header a:hover {
+      background-color: #e6f0ff;
+    }
+
+    form {
+      background: #fff;
+      border-radius: 16px;
+      padding: 30px 24px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(24px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    input,
+    select {
+      padding: 14px 16px;
+      border: 1.5px solid #ccc;
+      border-radius: 12px;
+      font-size: 16px;
+      background: #fff;
+      color: #333;
+      transition: border-color 0.25s ease;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: #007BFF;
+      outline: none;
+      box-shadow: 0 0 6px rgba(0, 123, 255, 0.4);
+    }
+
+    button {
+      padding: 16px;
+      background: #007BFF;
+      color: #fff;
+      font-weight: 700;
+      font-size: 17px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background-color 0.25s ease;
+    }
+
+    button:hover {
+      background: #0056cc;
+    }
+
+    #popupNotif {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: #007BFF;
+      color: white;
+      padding: 22px 36px;
+      border-radius: 14px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+      font-size: 18px;
+      font-weight: 600;
+      display: none;
+      z-index: 10000;
+      animation: popupFade 0.3s ease forwards;
+      max-width: 90%;
+      text-align: center;
+    }
+
+    @keyframes popupFade {
+      from {
+        opacity: 0;
+        transform: translate(-50%, -60%);
+      }
+
+      to {
+        opacity: 1;
+        transform: translate(-50%, -50%);
+      }
+    }
+
+    #popupNotif.show {
+      display: block;
+    }
+
+    @media (max-width: 520px) {
+      body {
+        padding: 30px 16px 50px;
+      }
+
+      form {
+        padding: 24px 18px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div id="loadingScreen">
+    <div class="spinner"></div>
+  </div>
+
+  <header>
+    <a href="/">&larr;</a>
+    Add Credit Card
+  </header>
+
+  <form id="addCardForm" autocomplete="off" novalidate>
+    <input type="text" id="cardName" placeholder="Card Name (e.g., Chase Freedom)" required />
+    <input type="text" id="cardHolder" placeholder="Cardholder Name" required />
+    <select id="category" required>
+      <option value="" disabled selected>Select Category</option>
+      <option value="Dining">Dining</option>
+      <option value="Gas">Gas</option>
+      <option value="Groceries">Groceries</option>
+      <option value="Travel">Travel</option>
+      <option value="Other">Other</option>
+    </select>
+    <input type="number" id="rewardPercent" placeholder="Reward %" required step="0.1" min="0" max="100" />
+    <button type="submit">Add Card</button>
+  </form>
+
+  <div id="popupNotif"></div>
+
+  <script>
+    const popup = document.getElementById('popupNotif');
+    const loader = document.getElementById('loadingScreen');
+
+    window.addEventListener('load', () => {
+      setTimeout(() => loader.style.display = 'none', 600);
+    });
+
+    function showPopup(message, duration = 3000) {
+      popup.textContent = message;
+      popup.classList.add('show');
+      clearTimeout(popup.hideTimeout);
+      popup.hideTimeout = setTimeout(() => {
+        popup.classList.remove('show');
+      }, duration);
+    }
+
+    document.getElementById('addCardForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = document.getElementById('cardName').value.trim();
+      const cardHolder = document.getElementById('cardHolder').value.trim();
+      const category = document.getElementById('category').value;
+      const rewardPercent = document.getElementById('rewardPercent').value;
+
+      if (!name || !cardHolder || !category || !rewardPercent) {
+        showPopup('Please fill out all fields.');
+        return;
+      }
+
+      try {
+        await fetch('/cards', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({name, cardHolder, category, rewardPercent})
+        });
+        showPopup('Card added successfully!');
+        e.target.reset();
+        setTimeout(() => window.location.href = '/', 1000);
+      } catch (err) {
+        showPopup('Error adding card. Please try again.');
+      }
+    });
+  </script>
+</body>
+
+</html>

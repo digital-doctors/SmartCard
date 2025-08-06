@@ -1,355 +1,311 @@
-from flask import Flask, render_template, request, jsonify, session
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for
-import random
-import time
-import smtplib
-import base64
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
-from cohere import Client
-from flask_session import Session
-from huggingface_hub import InferenceClient
-import numpy as np
-from PIL import Image
-from scipy.signal import butter, filtfilt, find_peaks
-import io
+from flask import Flask, request, jsonify, render_template, redirect, url_for, session
+import requests
+import json
+import os
 
-# Initialize Flask app
 app = Flask(__name__)
+app.secret_key = "9866c563db3cbf4b76493ed64a91b72c"  # CHANGE THIS before deployment!
 
-# Configurations for Flask session
-app.config['SESSION_TYPE'] = 'filesystem'
-app.config['SECRET_KEY'] = '2029240f6d1128be89ddc32729463129'
-Session(app)
+# ======= Static fallback merchant list =======
+MERCHANTS = [
+    (40.741895, -73.989308, "Dining", "Starbucks"),
+    (40.758896, -73.985130, "Gas", "Shell Station"),
+    (40.730610, -73.935242, "Groceries", "Whole Foods Market"),
+    (40.752726, -73.977229, "Travel", "Port Authority Bus Terminal"),
+    (40.712776, -74.005974, "Dining", "Shake Shack"),
+]
 
-# Set Cohere API key and initialize client
-COHERE_API_KEY = "oaiXjisZYMP0ZrNLdEHKSPduxKpJSIKZLAzIJ2aZ"
-co = Client(COHERE_API_KEY)
-
-# Set up Huggingface API client
-client = InferenceClient(
-    provider="cohere",
-    api_key=COHERE_API_KEY
-)
+FOURSQUARE_API_KEY = "NVSJSAPKIFDTDMGJ3O2PDUE3WEBDITCJBOU5PGYWLLXWZXQR"
+USERS_FILE = "users.json"
 
 
 
-# Bandpass filter for signal processing
-def butter_bandpass(lowcut, highcut, fs, order=5):
-    nyq = 0.5 * fs
-    low = lowcut / nyq
-    high = highcut / nyq
-    return butter(order, [low, high], btype='band')
 
-def bandpass_filter(data, lowcut=0.75, highcut=2.5, fs=30, order=5):
-    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-    return filtfilt(b, a, data)
-
-def moving_average(data, window_size=5):
-    """Simple moving average filter."""
-    return np.convolve(data, np.ones(window_size) / window_size, mode='valid')
-
-# Routes
-@app.route('/')
-def home():
-    return render_template('index.html')
-
-
-@app.route('/get_reports')
-
-def get_reports():
-    reports = [
-        "Report 1: Normal",
-        "Report 2: Mild Dehydration",
-        "Report 3: Elevated Heart Rate"
-    ]
-    return jsonify({"reports": reports})
-
-
-@app.route('/submit-form', methods=['POST'])
-
-def submit_form():
+# ======= Utility functions for user data =======
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
     try:
-        form_data = request.form.to_dict()
+        with open(USERS_FILE, "r") as f:
+            return json.load(f)
+    except Exception:
+        return {}
 
-        # Compile the form data into an email-style summary
-        summary = "\n".join([f"{k.replace('_', ' ').title()}: {v}" for k, v in form_data.items()])
 
-        # Send email with summary
-        sender_email = "Nikmaproducts@gmail.com"
-        sender_password = "rqri izcc ybnd conx"
-        recipient_email = "nikhi.kanda@gmail.com"
+def save_users(users):
+    with open(USERS_FILE, "w") as f:
+        json.dump(users, f, indent=2)
 
-        subject = "Patient Health Questionnaire Submission"
-        body = f"""Dear Doctor,
 
-The patient has completed the pre-consultation health questionnaire. Here's the summary:
-
-{summary}
-
-Best regards,
-DocAI
-"""
-
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        return "Form submitted successfully. Thank you!", 200
+# ======= Merchant detection functions =======
+def get_merchant_foursquare(lat, lon, api_key):
+    url = "https://api.foursquare.com/v3/places/search"
+    headers = {"Authorization": api_key}
+    params = {"ll": f"{lat},{lon}", "radius": 100, "limit": 1}
+    try:
+        r = requests.get(url, headers=headers, params=params, timeout=3)
+        if r.status_code == 200:
+            results = r.json().get("results", [])
+            if results:
+                merchant = results[0]
+                name = merchant.get("name")
+                categories = merchant.get("categories", [])
+                fsq_cat = categories[0]['name'].lower() if categories else ""
+                if any(x in fsq_cat for x in ["restaurant", "cafe", "food"]):
+                    category = "Dining"
+                elif any(x in fsq_cat for x in ["gas", "fuel"]):
+                    category = "Gas"
+                elif any(x in fsq_cat for x in ["grocery", "supermarket"]):
+                    category = "Groceries"
+                elif any(x in fsq_cat
+                         for x in ["travel", "station", "airport"]):
+                    category = "Travel"
+                else:
+                    category = "Other"
+                return category, name
     except Exception as e:
-        return f"Error submitting form: {str(e)}", 500
+        print("Foursquare API error:", e)
+    return None, None
 
-@app.route('/submit-patient', methods=['POST'])
 
-def submit_patient():
+def detect_merchant_overpass(lat, lon):
+    query = f"""
+    [out:json][timeout:3];
+    (
+      node(around:100,{lat},{lon})["amenity"~"restaurant|cafe|fast_food|fuel|supermarket|bus_station|train_station|airport"];
+      way(around:100,{lat},{lon})["amenity"~"restaurant|cafe|fast_food|fuel|supermarket|bus_station|train_station|airport"];
+      relation(around:100,{lat},{lon})["amenity"~"restaurant|cafe|fast_food|fuel|supermarket|bus_station|train_station|airport"];
+    );
+    out center 1;
+    """
     try:
-        patient_data = request.form.to_dict()
-        patient_summary = "\n".join([f"{k.replace('_', ' ').title()}: {v}" for k, v in patient_data.items()])
-
-        sender_email = "Nikmaproducts@gmail.com"
-        sender_password = "rqri izcc ybnd conx"
-        recipient_email = "nikhi.kanda@gmail.com"
-
-        subject = "New Patient Information Submission"
-        body = f"""Dear Doctor,
-
-A new patient has submitted their personal information:
-
-{patient_summary}
-
-Best regards,
-DocAI
-"""
-
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        return "Patient info submitted successfully.", 200
-    except Exception as e:
-        return f"Error: {str(e)}", 500
-
-@app.route('/analyze-image', methods=['POST'])
-
-def analyze_image():
-    try:
-        uploaded_files = request.files.getlist("images")
-        if not uploaded_files:
-            return jsonify({"error": "No images uploaded"}), 400
-
-        allowed_extensions = {"png", "jpg", "jpeg"}
-        all_image_reports = []
-
-        for image_file in uploaded_files:
-            filename = image_file.filename.lower()
-            if '.' not in filename or filename.rsplit('.', 1)[1] not in allowed_extensions:
-                continue  # Skip invalid files
-
-            image_bytes = image_file.read()
-            mime_type = f"image/{filename.rsplit('.', 1)[1]}"
-            data_url = f"data:{mime_type};base64,{base64.b64encode(image_bytes).decode()}"
-
-            # Send request with image and text prompt
-            completion = client.chat.completions.create(
-                model="CohereLabs/aya-vision-8b",
-                messages=[{
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": "This is a medical image. First, give a label on what the issue (disease, allergy, etc.) this may be. Then describe any visible conditions or abnormalities you notice, respond like Medical Assistant with accuracy."
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {
-                                "url": data_url
-                            }
-                        }
-                    ]
-                }],
-                max_tokens=512
-            )
-
-            feedback = completion.choices[0].message.get("content", "").strip()
-            report = f"Report for {image_file.filename}:\n\n{feedback}"
-            all_image_reports.append(report)
-
-        if not all_image_reports:
-            return jsonify({"error": "No valid images were processed."}), 400
-
-        final_report = "\n\n---\n\n".join(all_image_reports)
-
-        # Email setup
-        sender_email = "Nikmaproducts@gmail.com"
-        sender_password = "rqri izcc ybnd conx"
-        recipient_email = "nikhi.kanda@gmail.com"
-
-        subject = "AI-Based Medical Image Analysis"
-        body = f"""Dear Doctor,
-
-The following AI-generated analysis reports are based on the uploaded patient images:
-
-{final_report}
-
-Best regards,  
-DocAI
-"""
-
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
-
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        return jsonify({"message": "Image analysis report sent successfully."}), 200
-    except Exception as e:
-        return jsonify({"error": f"Image analysis failed: {str(e)}"}), 500
-
-@app.route('/analyze_ppg', methods=['POST'])
-
-def analyze_ppg():
-    try:
-        data = request.get_json()
-        fps = data.get("fps", 30)  # Default to 30 FPS if not provided
-        frames = data.get("frames", [])
-
-        if not frames or len(frames) < 20:
-            return jsonify({"error": "Not enough data frames provided"}), 400
-
-        green_intensities = []
-        red_intensities = []
-
-        # Process each frame
-        for frame in frames:
-            try:
-                # Decode the base64 image
-                image_data = base64.b64decode(frame.split(",")[1])
-                image = Image.open(io.BytesIO(image_data)).convert("RGB")
-                pixels = np.array(image)
-
-                # Extract green and red channel intensities
-                green_avg = np.mean(pixels[:, :, 1])  # Green channel
-                red_avg = np.mean(pixels[:, :, 2])    # Red channel
-
-                green_intensities.append(green_avg)
-                red_intensities.append(red_avg)
-            except Exception as e:
-                print(f"Error processing frame: {e}")
+        r = requests.post("https://overpass-api.de/api/interpreter",
+                          data=query,
+                          timeout=5)
+        data = r.json()
+        elements = data.get("elements", [])
+        if not elements:
+            return None, None
+        for el in elements:
+            tags = el.get("tags", {})
+            name = tags.get("name")
+            amenity = tags.get("amenity")
+            if not name or not amenity:
                 continue
-
-        # Ensure we have enough data
-        if len(green_intensities) < 20:
-            return jsonify({"error": "Not enough valid frames for analysis"}), 400
-
-        # Heart Rate Calculation
-        green_signal = np.array(green_intensities)
-        green_signal -= np.mean(green_signal)  # Remove DC component
-        filtered_signal = bandpass_filter(green_signal, lowcut=0.75, highcut=2.5, fs=fps, order=4)
-
-        # Find peaks in the filtered signal
-        peaks, _ = find_peaks(filtered_signal, distance=fps / 2)  # Minimum 0.5 seconds between peaks
-        if len(peaks) > 1:
-            ibi = np.diff(peaks) / fps  # Inter-beat intervals in seconds
-            heart_rate = int(60 / np.mean(ibi))  # Convert to BPM
-        else:
-            heart_rate = None
-
-        # Temperature Estimation
-        if len(red_intensities) >= fps:
-            smoothed_red = moving_average(red_intensities[-fps:], window_size=5)
-            temp_index = np.mean(smoothed_red)
-            temperature = round((34.0 + (temp_index - 100) * 0.05) * 9 / 5 + 32, 1)
-        else:
-            temperature = None
-
-        
-
-        # Generate and send the health report
-        return generate_ppg_report(co, heart_rate, temperature)
-
+            if amenity in ("restaurant", "cafe", "fast_food"):
+                return "Dining", name
+            elif amenity == "fuel":
+                return "Gas", name
+            elif amenity == "supermarket":
+                return "Groceries", name
+            elif amenity in ("bus_station", "train_station", "airport"):
+                return "Travel", name
+        first = elements[0]
+        tags = first.get("tags", {})
+        return "Other", tags.get("name", "Unknown")
     except Exception as e:
-        return jsonify({"error": f"Error analyzing PPG: {str(e)}"}), 500
+        print("Overpass API error:", e)
+        return None, None
 
 
-def generate_ppg_report(cohere, heart_rate, temperature):
+def detect_merchant_fallback(lat, lon):
+    for mlat, mlon, category, name in MERCHANTS:
+        dist = ((lat - mlat)**2 + (lon - mlon)**2)**0.5
+        if dist < 0.001:
+            return category, name
+    return None, None
+
+
+# ======= Routes =======
+@app.route('/')
+def root():
+    if 'user' in session:
+        return redirect(url_for('home'))
+    return redirect(url_for('login'))
+
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        users = load_users()
+        email = request.form.get('email')
+        password = request.form.get('password')
+
+        if email in users and users[email]['password'] == password:
+            session['user'] = email
+            return redirect(url_for('home'))
+        else:
+            return render_template('login.html', error="Invalid credentials")
+    return render_template('login.html')
+
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if request.method == 'POST':
+        users = load_users()
+        email = request.form.get('email')
+        password = request.form.get('password')
+        phone = request.form.get('phone_number')
+        dob = request.form.get('dob')
+        address = request.form.get('address')
+
+        if email in users:
+            return render_template('register.html',
+                                   error="Email already registered")
+
+        users[email] = {
+            'password': password,
+            'phone_number': phone,
+            'dob': dob,
+            'address': address,
+            'cards': []
+        }
+        save_users(users)
+        return redirect(url_for('login'))
+
+    return render_template('register.html')
+
+
+@app.route('/home')
+def home():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+
+    users = load_users()
+    user_email = session['user']
+    user = users.get(user_email, {})
+    name = user_email.split('@')[0]  # or use a stored name if you collect it
+
+    return render_template('index.html', name=name)
+
+
+@app.route('/add')
+def add_card_page():
+    if 'user' not in session:
+        return redirect(url_for('login'))
+    return render_template('add.html')
+
+
+@app.route('/cards', methods=['GET', 'POST'])
+def manage_cards():
+    if 'user' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    users = load_users()
+    user_email = session['user']
+
+    if user_email not in users:
+        return jsonify({'error': 'User not found'}), 404
+
+    if 'cards' not in users[user_email]:
+        users[user_email]['cards'] = []
+
+    if request.method == 'POST':
+        data = request.json
+        if data.get('delete'):
+            users[user_email]['cards'] = [
+                c for c in users[user_email]['cards']
+                if c['name'] != data['name']
+            ]
+        else:
+            if all(k in data for k in ('name', 'cardHolder', 'category',
+                                       'rewardPercent')):
+                new_card = {
+                    'name': data['name'],
+                    'cardHolder': data['cardHolder'],
+                    'category': data['category'],
+                    'rewardPercent': float(data['rewardPercent'])
+                }
+                users[user_email]['cards'].append(new_card)
+            else:
+                return jsonify({
+                    'status': 'error',
+                    'message': 'Missing card fields'
+                }), 400
+        save_users(users)
+        return jsonify({'status': 'success'})
+
+    else:
+        return jsonify(users[user_email].get('cards', []))
+
+
+@app.route('/recommend', methods=['POST'])
+def recommend():
+    if 'user' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    data = request.json
+    lat = data.get('lat')
+    lon = data.get('lon')
+    if lat is None or lon is None:
+        return jsonify({'error': 'Missing lat or lon'}), 400
+
+    addr = "Unknown"
     try:
-        # Generate AI health report using Cohere API
-        query = (
-            f"You are a helpful doctor. Please generate a professional health report based on the following:\n"
-            f"- Heart Rate: {heart_rate}\n"
-            f"- Temperature: {temperature}\n"
-            f"Provide insights and recommendations in a clear and helpful way."
-        )
+        r = requests.get("https://nominatim.openstreetmap.org/reverse",
+                         params={
+                             "lat": lat,
+                             "lon": lon,
+                             "format": "jsonv2"
+                         },
+                         headers={"User-Agent": "SmartCardApp/1.0"},
+                         timeout=3)
+        if r.status_code == 200:
+            j = r.json()
+            addr = j.get("display_name", "Unknown")
+    except Exception:
+        pass
 
-        response = cohere.generate(
-            model="command-light",
-            prompt=query,
-            max_tokens=300,
-            temperature=0.7
-        )
-        ai_report = response.generations[0].text.strip()
+    category, merchant_name = get_merchant_foursquare(lat, lon,
+                                                      FOURSQUARE_API_KEY)
+    if not category:
+        category, merchant_name = detect_merchant_overpass(lat, lon)
+    if not category:
+        category, merchant_name = detect_merchant_fallback(lat, lon)
 
-        # Email setup
-        sender_email = "Nikmaproducts@gmail.com"
-        sender_password = "rqri izcc ybnd conx"  # Your app password
-        recipient_email = "nikhi.kanda@gmail.com"
+    if not category:
+        return jsonify({
+            "address": addr,
+            "message": "No merchant found nearby."
+        })
 
-        # Subject and email body with vitals and AI report
-        subject = "AI-Generated Patient Health Report"
-        body = f"""Dear Doctor,
+    users = load_users()
+    user_cards = users.get(session['user'], {}).get('cards', [])
+    filtered_cards = [c for c in user_cards if c['category'] == category]
 
-Here is the AI-generated health report for the patient:
+    if not filtered_cards:
+        return jsonify({
+            "address": addr,
+            "message": f"No card for {category} category."
+        })
 
-Vital Health Data:
-- Heart Rate: {heart_rate}
-- Temperature: {temperature}
+    best_card = max(filtered_cards, key=lambda c: c['rewardPercent'])
+    return jsonify({
+        "address":
+        addr,
+        "message":
+        f"You're near {merchant_name}. Use {best_card['name']} for {best_card['rewardPercent']}% back!"
+    })
 
-AI Insights and Recommendations:
-{ai_report}
 
-Best regards,
-DocAI
-"""
+@app.route('/api/profile')
+def api_profile():
+    if 'user' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    users = load_users()
+    email = session['user']
+    user = users.get(email)
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
 
-        # Set up and send email
-        msg = MIMEMultipart()
-        msg['From'] = sender_email
-        msg['To'] = recipient_email
-        msg['Subject'] = subject
-        msg.attach(MIMEText(body, 'plain'))
+    profile = {
+        "email": email,
+        "phone_number": user.get('phone_number', ''),
+        "dob": user.get('dob', ''),
+        "address": user.get('address', ''),
+    }
+    return jsonify(profile)
 
-        with smtplib.SMTP('smtp.gmail.com', 587) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(msg)
-
-        return jsonify({"message": "AI-generated report successfully sent to the doctor."})
-    
-    except cohere.error.CohereError as ce:
-        return jsonify({"error": f"Cohere API error: {str(ce)}"}), 500
-    except Exception as e:
-        return jsonify({"error": f"Failed to send report: {str(e)}"}), 500 
 
 if __name__ == '__main__':
-    import os
-    port = int(os.environ.get("PORT", 5001))  # Default to port 5001 if PORT is not set
-    app.run(host='0.0.0.0', debug=True, port=port)
+    app.run(host='0.0.0.0', port=5000, debug=True)
